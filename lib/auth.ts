@@ -5,7 +5,7 @@ import { db } from "./db";
 
 type Account = { username: string; revision: number; id: string };
 
-const cookieName = "campino_access";
+const cookieName = process.env.NODE_ENV === "production" ? "__Host-campino_access" : "campino_access";
 const sessionSeconds = 60 * 60 * 24 * 7;
 
 export function digest(value: string) {
@@ -42,7 +42,7 @@ export async function createSession(accountId: string, revision: number) {
   jar.set(cookieName, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "strict",
     path: "/",
     maxAge: sessionSeconds,
   });
@@ -52,5 +52,11 @@ export async function endSession() {
   const jar = await cookies();
   const token = jar.get(cookieName)?.value;
   if (token) await db().query("DELETE FROM sessions WHERE token_hash = $1", [digest(token)]);
-  jar.delete(cookieName);
+  jar.set(cookieName, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+    maxAge: 0,
+  });
 }

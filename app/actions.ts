@@ -1,12 +1,12 @@
 "use server";
 
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createSession, digest, endSession, requireAccount } from "@/lib/auth";
+import { createSession, endSession, requireAccount } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { allowPasswordAttempt } from "@/lib/auth-limits";
 import { todayInRome, validDate } from "@/lib/dates";
-import { hashPassword, validPassword, validUsername, verifyPassword } from "@/lib/password.mjs";
+import { dummyPasswordHash, hashPassword, needsPasswordUpgrade, validPassword, validUsername, verifyPassword } from "@/lib/password.mjs";
 
 export type FormState = { error?: string; success?: string; booking?: { name: string; day: string } };
 
@@ -45,29 +45,22 @@ export async function signIn(_state: FormState, form: FormData): Promise<FormSta
   const invalid = { error: "Nome utente o password non validi." };
   if (!validUsername(username) || !password || password.length > 128) return invalid;
 
-  const client = (await headers()).get("x-vercel-forwarded-for")?.split(",")[0]?.trim() || "local";
   try {
-    const limit = await db().query<{ attempts: number }>(
-      `INSERT INTO login_limits (client_hash, attempts, window_started_at) VALUES ($1, 1, now())
-       ON CONFLICT (client_hash) DO UPDATE SET
-         attempts = CASE WHEN login_limits.window_started_at <= now() - interval '15 minutes'
-                         THEN 1 ELSE least(login_limits.attempts + 1, 9) END,
-         window_started_at = CASE WHEN login_limits.window_started_at <= now() - interval '15 minutes'
-                                  THEN now() ELSE login_limits.window_started_at END
-       RETURNING attempts`,
-      [digest(client)],
-    );
-    if (limit.rows[0].attempts > 8) return { error: "Troppi tentativi. Riprova tra 15 minuti." };
+    if (!(await allowPasswordAttempt(username))) return { error: "Troppi tentativi. Riprova tra 15 minuti." };
 
     const result = await db().query<{ username: string; password_hash: string; revision: number; id: string }>(
-      "SELECT username, password_hash, revision, id FROM accounts ORDER BY (username = $1) DESC LIMIT 1",
+      "SELECT username, password_hash, revision, id FROM accounts WHERE username = $1",
       [username],
     );
     const account = result.rows[0];
-    if (!account) return { error: "Accesso non configurato. Inizializza il database." };
-    const valid = await verifyPassword(password, account.password_hash);
-    if (!valid || account.username !== username) return invalid;
-    await db().query("DELETE FROM login_limits WHERE client_hash = $1 OR window_started_at <= now() - interval '15 minutes'", [digest(client)]);
+    const valid = await verifyPassword(password, account?.password_hash ?? dummyPasswordHash);
+    if (!valid || !account) return invalid;
+    if (needsPasswordUpgrade(account.password_hash)) {
+      await db().query(
+        "UPDATE accounts SET password_hash = $1 WHERE id = $2 AND revision = $3 AND password_hash = $4",
+        [await hashPassword(password), account.id, account.revision, account.password_hash],
+      );
+    }
     await createSession(account.id, account.revision);
   } catch (error) {
     console.error("Accesso Campino", error instanceof Error ? error.name : "Errore");
@@ -89,6 +82,7 @@ export async function updateCredentials(_state: FormState, form: FormData): Prom
   if (!validUsername(username)) return { error: "Usa 3–40 caratteri tra lettere, numeri, punti, trattini e underscore." };
   if (password && !validPassword(password)) return { error: "La nuova password può contenere al massimo 128 caratteri." };
   if (!currentPassword || currentPassword.length > 128) return { error: "La password attuale non è corretta." };
+  if (!(await allowPasswordAttempt(account.username))) return { error: "Troppi tentativi. Riprova tra 15 minuti." };
   const result = await db().query<{ password_hash: string }>(
     "SELECT password_hash FROM accounts WHERE id = $1 AND revision = $2", [account.id, account.revision],
   );
@@ -97,7 +91,7 @@ export async function updateCredentials(_state: FormState, form: FormData): Prom
   try {
     const updated = await db().query(
       "UPDATE accounts SET username = $1, password_hash = $2, revision = revision + 1 WHERE id = $3 AND revision = $4",
-      [username, password ? await hashPassword(password) : existing, account.id, account.revision],
+      [username, await hashPassword(password || currentPassword), account.id, account.revision],
     );
     if (!updated.rowCount) return { error: "Account modificato. Accedi di nuovo." };
   } catch {
