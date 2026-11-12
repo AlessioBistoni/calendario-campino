@@ -87,7 +87,7 @@ export async function updateCredentials(_state: FormState, form: FormData): Prom
   const password = field(form, "password");
   const currentPassword = field(form, "currentPassword");
   if (!validUsername(username)) return { error: "Usa 3–40 caratteri tra lettere, numeri, punti, trattini e underscore." };
-  if (password && !validPassword(password)) return { error: "La nuova password deve contenere da 12 a 128 caratteri." };
+  if (password && !validPassword(password)) return { error: "La nuova password può contenere al massimo 128 caratteri." };
   if (!currentPassword || currentPassword.length > 128) return { error: "La password attuale non è corretta." };
   const result = await db().query<{ password_hash: string }>(
     "SELECT password_hash FROM accounts WHERE id = $1 AND revision = $2", [account.id, account.revision],
@@ -112,7 +112,7 @@ export async function addMember(_state: FormState, form: FormData): Promise<Form
   const username = field(form, "username").trim();
   const password = field(form, "password");
   if (!validUsername(username)) return { error: "Usa 3–40 caratteri tra lettere, numeri, punti, trattini e underscore." };
-  if (!validPassword(password)) return { error: "La password deve contenere da 12 a 128 caratteri." };
+  if (!validPassword(password)) return { error: "Inserisci una password di massimo 128 caratteri." };
   try {
     const result = await db().query(
       `INSERT INTO accounts (username, password_hash)

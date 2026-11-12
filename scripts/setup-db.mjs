@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import pg from "pg";
-import { hashPassword, validUsername } from "../lib/password.mjs";
+import { hashPassword, validPassword, validUsername } from "../lib/password.mjs";
 
 const { DATABASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD } = process.env;
 if (!DATABASE_URL) throw new Error("Imposta DATABASE_URL.");
@@ -13,8 +13,8 @@ try {
   await client.query(await readFile(new URL("./schema.sql", import.meta.url), "utf8"));
   const existing = await client.query("SELECT 1 FROM accounts LIMIT 1");
   if (!existing.rowCount) {
-    if (!validUsername(ADMIN_USERNAME ?? "") || !ADMIN_PASSWORD || ADMIN_PASSWORD.length < 9 || ADMIN_PASSWORD.length > 128) {
-      throw new Error("Imposta ADMIN_USERNAME e ADMIN_PASSWORD (9–128 caratteri).");
+    if (!validUsername(ADMIN_USERNAME ?? "") || !validPassword(ADMIN_PASSWORD ?? "")) {
+      throw new Error("Imposta ADMIN_USERNAME e ADMIN_PASSWORD (obbligatoria, massimo 128 caratteri).");
     }
     await client.query(
       "INSERT INTO accounts (username, password_hash) VALUES ($1, $2)",

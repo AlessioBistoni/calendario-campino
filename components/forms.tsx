@@ -86,8 +86,8 @@ export function CredentialsForm({ username }: { username: string }) {
       </label>
       <label className="field">
         <span>Nuova password <small>(facoltativa)</small></span>
-        <input name="password" type="password" autoComplete="new-password" minLength={12} maxLength={128} aria-describedby="password-hint" />
-        <small id="password-hint">Lascia vuoto per conservare la password attuale. La nuova password richiede almeno 12 caratteri.</small>
+        <input name="password" type="password" autoComplete="new-password" maxLength={128} aria-describedby="password-hint" />
+        <small id="password-hint">Lascia vuoto per conservare la password attuale.</small>
       </label>
       {state.error && <p className="form-error" role="alert">{state.error}</p>}
       {state.success && <p className="form-success" role="status">{state.success}</p>}
@@ -107,8 +107,7 @@ export function AddMemberForm() {
       </label>
       <label className="field">
         <span>Password</span>
-        <input name="password" type="password" required minLength={12} maxLength={128} autoComplete="new-password" />
-        <small>Da 12 a 128 caratteri.</small>
+        <input name="password" type="password" required maxLength={128} autoComplete="new-password" />
       </label>
       {state.error && <p className="form-error" role="alert">{state.error}</p>}
       {state.success && <p className="form-success" role="status">{state.success}</p>}
