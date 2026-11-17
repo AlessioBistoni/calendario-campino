@@ -2,10 +2,7 @@ import { requireAccount } from "@/lib/auth";
 import { getBookings, totals } from "@/lib/bookings";
 import { todayInRome } from "@/lib/dates";
 
-function csvText(text: string) {
-  const safe = /^[\s]*[=+@-]/u.test(text) ? `'${text}` : text;
-  return `"${safe.replaceAll('"', '""')}"`;
-}
+import { csvText } from "@/lib/csv";
 
 function decimal(cents: number) {
   return (cents / 100).toFixed(2).replace(".", ",");

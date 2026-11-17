@@ -5,10 +5,11 @@ import { redirect } from "next/navigation";
 import { createSession, endSession, requireAccount } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { allowPasswordAttempt } from "@/lib/auth-limits";
+import { managementPath, validEventType, type BookingKind, type EventType } from "@/lib/reservations";
 import { todayInRome, validDate } from "@/lib/dates";
 import { dummyPasswordHash, hashPassword, needsPasswordUpgrade, validPassword, validUsername, verifyPassword } from "@/lib/password.mjs";
 
-export type FormState = { error?: string; success?: string; booking?: { name: string; day: string } };
+export type FormState = { error?: string; success?: string; booking?: { name: string; day: string; eventType?: EventType } };
 
 function field(form: FormData, key: string) {
   const value = form.get(key);
@@ -16,7 +17,17 @@ function field(form: FormData, key: string) {
 }
 
 export async function book(_state: FormState, form: FormData): Promise<FormState> {
+  return reserve("campino", form);
+}
+
+export async function bookEvent(_state: FormState, form: FormData): Promise<FormState> {
+  return reserve("eventi", form);
+}
+
+async function reserve(kind: BookingKind, form: FormData): Promise<FormState> {
   const account = await requireAccount();
+  const eventType = field(form, "eventType");
+  if (kind === "eventi" && !validEventType(eventType)) return { error: "Seleziona una tipologia di evento." };
   const name = field(form, "name").trim().replace(/\s+/gu, " ");
   const day = field(form, "day");
   if (name.length < 2 || name.length > 80 || /[\p{Cc}\p{Cf}]/u.test(name)) {
@@ -24,19 +35,26 @@ export async function book(_state: FormState, form: FormData): Promise<FormState
   }
   if (!validDate(day) || day < todayInRome()) return { error: "Scegli una data da oggi in poi." };
   try {
-    const result = await db().query(
-      `INSERT INTO bookings (name, booked_date)
-       SELECT $1, $2::date FROM accounts WHERE id = $3 AND revision = $4
-       ON CONFLICT (booked_date) DO NOTHING`,
-      [name, day, account.id, account.revision],
-    );
+    const result = kind === "eventi"
+      ? await db().query(
+          `INSERT INTO events (name, booked_date, event_type)
+           SELECT $1, $2::date, $3 FROM accounts WHERE id = $4 AND revision = $5
+           ON CONFLICT (booked_date) DO NOTHING`,
+          [name, day, eventType, account.id, account.revision],
+        )
+      : await db().query(
+          `INSERT INTO bookings (name, booked_date)
+           SELECT $1, $2::date FROM accounts WHERE id = $3 AND revision = $4
+           ON CONFLICT (booked_date) DO NOTHING`,
+          [name, day, account.id, account.revision],
+        );
     if (!result.rowCount) return { error: "Data non disponibile. Scegli un altro giorno o accedi di nuovo." };
   } catch (error) {
     console.error("Salvataggio prenotazione", error instanceof Error ? error.name : "Errore");
     return { error: "Salvataggio non riuscito. Riprova tra poco." };
   }
-  revalidatePath("/gestione");
-  return { booking: { name, day } };
+  revalidatePath(managementPath(kind));
+  return { booking: { name, day, ...(kind === "eventi" && validEventType(eventType) ? { eventType } : {}) } };
 }
 
 export async function signIn(_state: FormState, form: FormData): Promise<FormState> {
@@ -167,17 +185,26 @@ export async function setPayment(id: string, paid: boolean) {
 }
 
 export async function deleteBooking(id: string, _state: FormState, _form: FormData): Promise<FormState> {
+  return deleteReservation("campino", id);
+}
+
+export async function deleteEvent(id: string, _state: FormState, _form: FormData): Promise<FormState> {
+  return deleteReservation("eventi", id);
+}
+
+async function deleteReservation(kind: BookingKind, id: string): Promise<FormState> {
   const account = await requireAccount();
+  const table = kind === "eventi" ? "events" : "bookings";
   if (!/^[\da-f]{8}-(?:[\da-f]{4}-){3}[\da-f]{12}$/i.test(id)) return { error: "Prenotazione non valida." };
   try {
     await db().query(
-      `DELETE FROM bookings WHERE id = $1
+      `DELETE FROM ${table} WHERE id = $1
        AND EXISTS (SELECT 1 FROM accounts WHERE id = $2 AND revision = $3)`,
       [id, account.id, account.revision],
     );
   } catch {
     return { error: "Eliminazione non riuscita. Riprova." };
   }
-  revalidatePath("/gestione");
+  revalidatePath(managementPath(kind));
   return { success: "Prenotazione eliminata." };
 }

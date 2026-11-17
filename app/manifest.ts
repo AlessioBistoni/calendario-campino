@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/",
     name: "Campino",
     short_name: "Campino",
-    description: "Prenota il campino.",
+    description: "Prenotazioni del campino e degli eventi.",
     start_url: "/",
     scope: "/",
     display: "standalone",

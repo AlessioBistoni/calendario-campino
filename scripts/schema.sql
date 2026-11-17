@@ -42,3 +42,11 @@ CREATE TABLE IF NOT EXISTS login_limits (
   attempts integer NOT NULL,
   window_started_at timestamptz NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS events (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  booked_date date NOT NULL UNIQUE,
+  name text NOT NULL CHECK (char_length(name) BETWEEN 2 AND 80),
+  event_type text NOT NULL CHECK (event_type IN ('Compleanno', 'Evento CVA', 'Evento esterno')),
+  created_at timestamptz NOT NULL DEFAULT now()
+);

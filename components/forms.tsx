@@ -1,20 +1,22 @@
 "use client";
 
 import { useActionState, useId, useRef, useState } from "react";
-import { book, signIn, updateCredentials, addMember, deleteMember, deleteBooking, type FormState } from "@/app/actions";
+import { book, bookEvent, signIn, updateCredentials, addMember, deleteMember, deleteBooking, deleteEvent, type FormState } from "@/app/actions";
+import { eventTypes, type BookingKind } from "@/lib/reservations";
 import { formatDay } from "@/lib/dates";
 
 const initial: FormState = {};
 
-export function BookingForm({ today }: { today: string }) {
+export function BookingForm({ today, kind = "campino" }: { today: string; kind?: BookingKind }) {
   const [instance, reset] = useState(0);
-  return <BookingFields key={instance} today={today} onReset={() => reset(instance + 1)} />;
+  return <BookingFields key={instance} today={today} kind={kind} onReset={() => reset(instance + 1)} />;
 }
 
-function BookingFields({ today, onReset }: { today: string; onReset: () => void }) {
-  const [state, action, pending] = useActionState(book, initial);
+function BookingFields({ today, kind, onReset }: { today: string; kind: BookingKind; onReset: () => void }) {
+  const [state, action, pending] = useActionState(kind === "eventi" ? bookEvent : book, initial);
   const [name, setName] = useState("");
   const [day, setDay] = useState("");
+  const [eventType, setEventType] = useState("");
 
   if (state.booking) {
     return (
@@ -22,6 +24,7 @@ function BookingFields({ today, onReset }: { today: string; onReset: () => void 
         <h1 id="confirmation-title">Prenotazione confermata</h1>
         <dl className="confirmation">
           <div><dt>Nome</dt><dd>{state.booking.name}</dd></div>
+          {state.booking.eventType && <div><dt>Tipologia</dt><dd>{state.booking.eventType}</dd></div>}
           <div><dt>Giorno</dt><dd>{formatDay(state.booking.day)}</dd></div>
         </dl>
         <button type="button" className="button secondary full" onClick={onReset}>Nuova prenotazione</button>
@@ -31,19 +34,28 @@ function BookingFields({ today, onReset }: { today: string; onReset: () => void 
 
   return (
     <section className="form-section" aria-labelledby="booking-title">
-      <h1 id="booking-title">Prenota il campino</h1>
+      <h1 id="booking-title">{kind === "eventi" ? "Prenota un evento" : "Prenota il campino"}</h1>
       <form className="stack" action={action}>
         <label className="field" htmlFor="booking-name">
           <span>Nome</span>
           <input id="booking-name" name="name" autoComplete="name" placeholder="Nome prenotazione" required minLength={2} maxLength={80} value={name} onChange={(event) => setName(event.target.value)} />
         </label>
+        {kind === "eventi" && (
+          <label className="field" htmlFor="event-type">
+            <span>Tipologia di evento</span>
+            <select id="event-type" name="eventType" required value={eventType} onChange={(event) => setEventType(event.target.value)}>
+              <option value="" disabled>Seleziona una tipologia</option>
+              {eventTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+            </select>
+          </label>
+        )}
         <label className="field" htmlFor="booking-day">
-          <span>Giorno della partita</span>
+          <span>{kind === "eventi" ? "Giorno dell’evento" : "Giorno della partita"}</span>
           <input id="booking-day" type="date" name="day" required min={today} max="9999-12-31" value={day} onChange={(event) => setDay(event.target.value)} />
         </label>
         {state.error && <p className="form-error" role="alert">{state.error}</p>}
         <button className="button primary full" disabled={pending}>
-          {pending ? "Salvataggio…" : "Prenota il campino"}
+          {pending ? "Salvataggio…" : kind === "eventi" ? "Prenota evento" : "Prenota il campino"}
         </button>
       </form>
     </section>
@@ -120,8 +132,8 @@ export function DeleteMemberForm({ id, username }: { id: string; username: strin
   return <ConfirmDeleteForm action={deleteMember.bind(null, id)} label={username} question={`Eliminare ${username}?`} />;
 }
 
-export function DeleteBookingForm({ id, name, day }: { id: string; name: string; day: string }) {
-  return <ConfirmDeleteForm action={deleteBooking.bind(null, id)} label={`prenotazione di ${name}`} question={`Eliminare la prenotazione di ${name} per ${formatDay(day)}? La partita sarà rimossa anche dal riepilogo degli incassi.`} />;
+export function DeleteBookingForm({ id, name, day, kind = "campino" }: { id: string; name: string; day: string; kind?: BookingKind }) {
+  return <ConfirmDeleteForm action={(kind === "eventi" ? deleteEvent : deleteBooking).bind(null, id)} label={`prenotazione di ${name}`} question={`Eliminare la prenotazione di ${name} per ${formatDay(day)}?${kind === "campino" ? " La partita sarà rimossa anche dal riepilogo degli incassi." : ""}`} />;
 }
 
 function ConfirmDeleteForm({ action: deleteAction, label, question }: {

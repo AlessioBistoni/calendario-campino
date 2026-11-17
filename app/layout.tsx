@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: { default: "Campino · Prenota", template: "%s · Campino" },
-  description: "Prenota il campino scegliendo il tuo nome e il giorno della partita.",
+  description: "Prenota il campino o un evento scegliendo nome e giorno.",
   applicationName: "Campino",
   robots: { index: false, follow: false },
   appleWebApp: { capable: true, title: "Campino", statusBarStyle: "default" },
