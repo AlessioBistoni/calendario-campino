@@ -30,7 +30,7 @@ export async function CalendarDashboard({ monthQuery, kind = "campino" }: { mont
         <div className="dashboard-heading">
           <h1>{events ? "Gestione eventi" : "Gestione campino"}</h1>
           <div className="dashboard-actions">
-            <a className="button primary" href={events ? `${path}/prenotazioni.csv` : "/gestione/bilancio"}><Download size={17} aria-hidden /> {events ? "Scarica prenotazioni" : "Scarica incassi"}</a>
+            <a className="button primary" href={events ? `${path}/prenotazioni.png` : "/gestione/bilancio"}><Download size={17} aria-hidden /> {events ? "Scarica resoconto PNG" : "Scarica incassi"}</a>
             <Link className="button secondary" href="/gestione/credenziali"><KeyRound size={16} aria-hidden /> Account</Link>
           </div>
         </div>
